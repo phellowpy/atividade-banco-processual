@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro com Notas</title>
+</head>
+<body>
+  <h2>Cadastro com Notas</h2>
+
+  <form id="formCadastro" onsubmit="event.preventDefault(); salvarOuAtualizar();">
+    <input type="hidden" id="idEdicao"> <!-- usado para saber se estamos editando -->
+
+    <input type="text" id="nome" placeholder="Nome completo" maxlength="50" required><br><br>
+
+    <input type="text" id="telefone" placeholder="Telefone (apenas números)" maxlength="11" 
+           oninput="this.value=this.value.replace(/[^0-9]/g,'');" required><br><br>
+
+    <input type="text" id="cpf" placeholder="CPF (apenas números)" maxlength="11" 
+           oninput="this.value=this.value.replace(/[^0-9]/g,'');" required><br><br>
+
+    <textarea id="nota" placeholder="Escreva sua nota aqui..." rows="5" cols="40" required></textarea><br><br>
+
+    <button type="submit">Salvar</button>
+    <button type="button" onclick="cancelarEdicao()" style="display:none;" id="cancelarBtn">Cancelar Edição</button>
+  </form>
+
+  <h3>Cadastros Salvos:</h3>
+  <ul id="listaNotas"></ul>
+
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDpXSyoQJv5i0y8_vHn4QJYWz88TSlg",
+      authDomain: "cadastro-c97cb.firebaseapp.com",
+      databaseURL: "https://cadastro-c97cb-default-rtdb.firebaseio.com",
+      projectId: "cadastro-c97cb",
+      storageBucket: "cadastro-c97cb.appspot.com",
+      messagingSenderId: "72736561279",
+      appId: "1:72736561279:web:3e66b8b2274514fb2c29ca",
+      measurementId: "G-HWNKL4Y7T"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Salvar ou atualizar
+    function salvarOuAtualizar() {
+      const idEdicao = document.getElementById("idEdicao").value;
+      const nome = document.getElementById("nome").value;
+      const telefone = document.getElementById("telefone").value;
+      const cpf = document.getElementById("cpf").value;
+      const nota = document.getElementById("nota").value;
+
+      if (!nome || !telefone || !cpf || !nota) {
+        alert("Preencha todos os campos!");
+        return;
+      }
+
+      if (idEdicao) {
+        // Atualizar
+        update(ref(db, "cadastros/" + idEdicao), {
+          nome, telefone, cpf, nota
+        });
+        cancelarEdicao();
+      } else {
+        // Novo cadastro
+        push(ref(db, "cadastros"), {
+          nome, telefone, cpf, nota,
+          data: new Date().toLocaleString()
+        });
+      }
+
+      document.getElementById("formCadastro").reset();
+    }
+
+    // Cancelar edição
+    function cancelarEdicao() {
+      document.getElementById("formCadastro").reset();
+      document.getElementById("idEdicao").value = "";
+      document.getElementById("cancelarBtn").style.display = "none";
+    }
+
+    // Carregar lista
+    const listaNotas = document.getElementById("listaNotas");
+    onValue(ref(db, "cadastros"), (snapshot) => {
+      listaNotas.innerHTML = "";
+      snapshot.forEach((child) => {
+        const id = child.key;
+        const dados = child.val();
+
+        const li = document.createElement("li");
+        li.innerHTML = `
+          ${dados.data || ""} - ${dados.nome} | Tel: ${dados.telefone} | CPF: ${dados.cpf} | Nota: ${dados.nota}
+          <button onclick="editarCadastro('${id}', '${dados.nome}', '${dados.telefone}', '${dados.cpf}', \`${dados.nota}\`)">Editar</button>
+          <button onclick="excluirCadastro('${id}')">Excluir</button>
+        `;
+        listaNotas.appendChild(li);
+      });
+    });
+
+    // Excluir
+    window.excluirCadastro = function(id) {
+      if (confirm("Tem certeza que deseja excluir?")) {
+        remove(ref(db, "cadastros/" + id));
+      }
+    };
+
+    // Editar
+    window.editarCadastro = function(id, nome, telefone, cpf, nota) {
+      document.getElementById("idEdicao").value = id;
+      document.getElementById("nome").value = nome;
+      document.getElementById("telefone").value = telefone;
+      document.getElementById("cpf").value = cpf;
+      document.getElementById("nota").value = nota;
+      document.getElementById("cancelarBtn").style.display = "inline";
+    };
+
+    window.salvarOuAtualizar = salvarOuAtualizar;
+    window.cancelarEdicao = cancelarEdicao;
+  </script>
+</body>
+</html>
