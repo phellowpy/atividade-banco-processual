@@ -3,23 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <title>Cadastro com Notas</title>
-  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h2>Cadastro com Notas</h2>
 
   <form id="formCadastro" onsubmit="event.preventDefault(); salvarOuAtualizar();">
-    <input type="hidden" id="idEdicao"> <!-- usado para saber se estamos editando -->
+    <input type="hidden" id="idEdicao">
 
-    <input type="text" id="nome" placeholder="Nome completo" maxlength="50" required><br><br>
+    <!-- Nome: letras e espaços, mínimo 3 caracteres, sem repetir nomes -->
+    <input type="text" id="nome" placeholder="Nome completo" maxlength="50" minlength="3" 
+           oninput="this.value=this.value.replace(/[^A-Za-záéíóúàèìòùãõâêîôûäëïöüÿÁÉÍÓÚÀÈÌÒÙÃÕÂÊÎÔÛÄËÏÖÜŸ ]/g,'');" 
+           required><br><br>
 
-    <input type="text" id="telefone" placeholder="Telefone (apenas números)" maxlength="11" 
+    <!-- Telefone: apenas números -->
+    <input type="text" id="telefone" placeholder="Telefone (apenas números)" maxlength="11" minlength="10"
            oninput="this.value=this.value.replace(/[^0-9]/g,'');" required><br><br>
 
-    <input type="text" id="cpf" placeholder="CPF (apenas números)" maxlength="11" 
+    <!-- CPF: apenas números -->
+    <input type="text" id="cpf" placeholder="CPF (apenas números)" maxlength="11" minlength="11"
            oninput="this.value=this.value.replace(/[^0-9]/g,'');" required><br><br>
 
-    <textarea id="nota" placeholder="Escreva sua nota aqui..." rows="5" cols="40" required></textarea><br><br>
+    <!-- Nota -->
+    <textarea id="nota" placeholder="Escreva sua nota aqui..." rows="5" cols="40" minlength="5" required></textarea><br><br>
 
     <button type="submit">Salvar</button>
     <button type="button" onclick="cancelarEdicao()" style="display:none;" id="cancelarBtn">Cancelar Edição</button>
@@ -28,7 +33,6 @@
   <h3>Cadastros Salvos:</h3>
   <ul id="listaNotas"></ul>
 
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -47,44 +51,84 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
+    // Funções de formatação
+    function formatarCPF(cpf) {
+      return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+
+    function formatarTelefone(tel) {
+      if (tel.length === 11) {
+        return tel.replace(/(\d{2})(\d{5})(\d{4})/, "($1)$2-$3");
+      }
+      return tel;
+    }
+
     // Salvar ou atualizar
     function salvarOuAtualizar() {
       const idEdicao = document.getElementById("idEdicao").value;
-      const nome = document.getElementById("nome").value;
-      const telefone = document.getElementById("telefone").value;
-      const cpf = document.getElementById("cpf").value;
-      const nota = document.getElementById("nota").value;
+      const nome = document.getElementById("nome").value.trim();
+      const telefone = document.getElementById("telefone").value.trim();
+      const cpf = document.getElementById("cpf").value.trim();
+      const nota = document.getElementById("nota").value.trim();
 
+      // Validação obrigatória
       if (!nome || !telefone || !cpf || !nota) {
         alert("Preencha todos os campos!");
         return;
       }
 
+      // Nome: mínimo 3 caracteres
+      if (nome.length < 3) {
+        alert("Nome deve ter no mínimo 3 caracteres!");
+        return;
+      }
+
+      // Nome: verificar se há repetições
+      const nomes = nome.split(/\s+/).map(n => n.toLowerCase());
+      const nomesSet = new Set(nomes);
+      if (nomesSet.size !== nomes.length) {
+        alert("Não é permitido repetir nomes no nome completo!");
+        return;
+      }
+
+      // Telefone: mínimo 10 números e sem repetições de mais de 4 dígitos
+      if (telefone.length < 10) {
+        alert("Telefone deve ter no mínimo 10 números!");
+        return;
+      }
+      if (/(\d)\1{4,}/.test(telefone)) {
+        alert("Telefone não pode ter mais de 4 números iguais consecutivos!");
+        return;
+      }
+
+      // CPF: exatamente 11 números
+      if (cpf.length !== 11) {
+        alert("CPF deve ter 11 números!");
+        return;
+      }
+
+      // Nota: mínimo 5 caracteres
+      if (nota.length < 5) {
+        alert("Nota deve ter no mínimo 5 caracteres!");
+        return;
+      }
+
       if (idEdicao) {
-        // Atualizar
-        update(ref(db, "cadastros/" + idEdicao), {
-          nome, telefone, cpf, nota
-        });
+        update(ref(db, "cadastros/" + idEdicao), { nome, telefone, cpf, nota });
         cancelarEdicao();
       } else {
-        // Novo cadastro
-        push(ref(db, "cadastros"), {
-          nome, telefone, cpf, nota,
-          data: new Date().toLocaleString()
-        });
+        push(ref(db, "cadastros"), { nome, telefone, cpf, nota, data: new Date().toLocaleString() });
       }
 
       document.getElementById("formCadastro").reset();
     }
 
-    // Cancelar edição
     function cancelarEdicao() {
       document.getElementById("formCadastro").reset();
       document.getElementById("idEdicao").value = "";
       document.getElementById("cancelarBtn").style.display = "none";
     }
 
-    // Carregar lista
     const listaNotas = document.getElementById("listaNotas");
     onValue(ref(db, "cadastros"), (snapshot) => {
       listaNotas.innerHTML = "";
@@ -94,7 +138,7 @@
 
         const li = document.createElement("li");
         li.innerHTML = `
-          ${dados.data || ""} - ${dados.nome} | Tel: ${dados.telefone} | CPF: ${dados.cpf} | Nota: ${dados.nota}
+          ${dados.data || ""} - ${dados.nome} | Tel: ${formatarTelefone(dados.telefone)} | CPF: ${formatarCPF(dados.cpf)} | Nota: ${dados.nota}
           <button onclick="editarCadastro('${id}', '${dados.nome}', '${dados.telefone}', '${dados.cpf}', \`${dados.nota}\`)">Editar</button>
           <button onclick="excluirCadastro('${id}')">Excluir</button>
         `;
@@ -102,14 +146,12 @@
       });
     });
 
-    // Excluir
     window.excluirCadastro = function(id) {
       if (confirm("Tem certeza que deseja excluir?")) {
         remove(ref(db, "cadastros/" + id));
       }
     };
 
-    // Editar
     window.editarCadastro = function(id, nome, telefone, cpf, nota) {
       document.getElementById("idEdicao").value = id;
       document.getElementById("nome").value = nome;
